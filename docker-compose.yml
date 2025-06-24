@@ -1,0 +1,81 @@
+services:
+  cosmos-chain-registry-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: cosmos-chain-registry-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - ENABLE_SWAGGER=false
+      # Override admin IPs for Docker network
+      - ADMIN_IPS=${ADMIN_IPS:-127.0.0.1,::1,172.16.0.0/12}
+    volumes:
+      # Persist chain registry data
+      - chain_data:/app/data
+      # Persist logs
+      - logs_data:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cosmos_network
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+  # Development version with hot reload
+  cosmos-chain-registry-api-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: cosmos-chain-registry-api-dev
+    profiles:
+      - development
+    ports:
+      - "3001:${PORT:-3000}"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - ENABLE_SWAGGER=true
+      - LOG_LEVEL=debug
+      # Override admin IPs for Docker network  
+      - ADMIN_IPS=${ADMIN_IPS:-127.0.0.1,::1,172.16.0.0/12}
+    volumes:
+      - .:/app
+      - chain_data_dev:/app/data
+      - logs_data_dev:/app/logs
+      - /app/node_modules
+    command: npm run dev
+    networks:
+      - cosmos_network
+
+volumes:
+  chain_data:
+    driver: local
+  logs_data:
+    driver: local
+  chain_data_dev:
+    driver: local
+  logs_data_dev:
+    driver: local
+
+networks:
+  cosmos_network:
+    driver: bridge
